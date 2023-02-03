@@ -62,11 +62,11 @@ if [ "${1}" = "-a" ]; then
 
 	/usr/local/sbin/ifctl -i ${ifname} -6nd ${nameservers}
 	/usr/local/sbin/ifctl -i ${ifname} -6sd ${searchlist}
-	/usr/local/sbin/ifctl -i ${ifname} -6rd -a ${rasrca}
+	#/usr/local/sbin/ifctl -i ${ifname} -6rd -a ${rasrca}
 elif [ "${1}" = "-d" ]; then
 	/usr/local/sbin/ifctl -i ${ifname} -6nd
 	/usr/local/sbin/ifctl -i ${ifname} -6sd
-	/usr/local/sbin/ifctl -i ${ifname} -6rd
+	#/usr/local/sbin/ifctl -i ${ifname} -6rd
 fi
 
 # wait for DAD to complete to avoid tentative address
