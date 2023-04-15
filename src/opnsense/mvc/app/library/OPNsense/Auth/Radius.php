@@ -177,7 +177,7 @@ class Radius extends Base implements IAuthConnector
                     $this->timeout,
                     $this->maxRetries
                 )
-            ) {
+             ) {
                 $error = radius_strerror($radius);
             } elseif (!radius_create_request($radius, RADIUS_ACCOUNTING_REQUEST)) {
                 $error = radius_strerror($radius);
@@ -211,6 +211,16 @@ class Radius extends Base implements IAuthConnector
                 }
                 switch ($req) {
                     case RADIUS_ACCOUNTING_RESPONSE:
+			            syslog(LOG_ERR, 'ACCT START RESPONSE');
+			            while ($resa = radius_get_attr($radius)) {
+                            syslog(LOG_ERR, 'ACCT ATTRIBUTE DATA: ' . $resa['data']);
+                            switch ($resa['attr']) {
+                                case RADIUS_SESSION_TIMEOUT:
+                                    break;
+                                default:
+                                    break;
+                            }
+                        }
                         break;
                     default:
                         syslog(LOG_ERR, "Unexpected return value:$radius\n");
@@ -307,7 +317,7 @@ class Radius extends Base implements IAuthConnector
      * @param $bytes_out
      * @param $ip_address
      */
-    public function updateAccounting($username, $sessionid, $session_time, $bytes_in, $bytes_out, $ip_address)
+    public function updateAccounting($username, $zoneid, $sessionid, $session_time, $bytes_in, $bytes_out, $ip_address)
     {
         // only send messages if target port specified
         if ($this->acctPort != null) {
@@ -367,7 +377,23 @@ class Radius extends Base implements IAuthConnector
                     exit;
                 }
                 switch ($req) {
-                    case RADIUS_ACCOUNTING_RESPONSE:
+                    case  5: //.RADIUS_ACCOUNTING_RESPONSE:
+			            syslog(LOG_ERR, 'ACCT UPDATE RESPONSE');
+			            while ($resa = radius_get_attr($radius)) {
+                            syslog(LOG_ERR, 'ACCT ATTRIBUTE DATA: ' . $resa['data']);
+                            switch ($resa['attr']) {
+                                case RADIUS_SESSION_TIMEOUT:
+                                    // The value received should always be 1
+                                    $data_exhaust = radius_cvt_int($resa['data']);
+                                    syslog(LOG_ERR, "ACCT DATA EXHAUST:" . $data_exhaust);
+                                    $this->lastAuthProperties['data_exhaust'] = radius_cvt_int($resa['data']);
+                                    $temp_data = $this->lastAuthProperties['data_exhaust'];
+                                    syslog(LOG_ERR, "ACCT SESS_TIMEOUT:" . $temp_data);
+                                    break;
+                                default:
+                                    break;
+                            }
+                        }
                         break;
                     default:
                         syslog(LOG_ERR, "Unexpected return value:$radius\n");
@@ -384,7 +410,8 @@ class Radius extends Base implements IAuthConnector
      * @return bool authentication status
      */
     public function authenticate($username, $password)
-    {
+    {	
+	syslog(LOG_ERR, "AUTHENTICATE KE ANDAR");
         $this->lastAuthProperties = array();// reset auth properties
         $radius = radius_auth_open();
 
@@ -434,12 +461,15 @@ class Radius extends Base implements IAuthConnector
             syslog(LOG_ERR, 'RadiusError: ' . $error);
         } else {
             $request = radius_send_request($radius);
+	syslog(LOG_ERR, "REQUEST CAlled");
             if (!$radius) {
                 syslog(LOG_ERR, 'RadiusError: ' . radius_strerror($radius));
-            } else {
+       	    } else {
+		syslog(LOG_ERR, "REQUEST SCUEES");
                 switch ($request) {
                     case RADIUS_ACCESS_ACCEPT:
                         while ($resa = radius_get_attr($radius)) {
+			syslog(LOG_ERR, 'RADIUS_ACCEPT_ATTRIBUTE:' . $resa['attr']);
                             switch ($resa['attr']) {
                                 case RADIUS_SESSION_TIMEOUT:
                                     $this->lastAuthProperties['session_timeout'] = radius_cvt_int($resa['data']);

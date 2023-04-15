@@ -57,7 +57,9 @@ $result = $db->query('
 
 // process all sessions
 if ($result !== false) {
+    syslog(LOG_ERR, 'PROCESS_ACCOUNTING');
     while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+        syslog(LOG_ERR, 'PROCESS_ACCOUNTING');
         $authFactory = new OPNsense\Auth\AuthenticationFactory();
         $authenticator = $authFactory->get($row['authenticated_via']);
         if ($authenticator != null) {
@@ -90,7 +92,34 @@ if ($result !== false) {
                 if (method_exists($authenticator, 'updateAccounting')) {
                     // send interim update event
                     $time_spend = time() - $row['created'];
-                    $authenticator->updateAccounting($row['username'], $row['sessionid'], $time_spend, $row['bytes_in'], $row['bytes_out'], $row['ip_address']);
+                    $authenticator->updateAccounting($row['username'], $row['zoneid'], $row['sessionid'], $time_spend, $row['bytes_in'], $row['bytes_out'], $row['ip_address']);
+                    
+
+                    $authProps = $authenticator->getLastAuthProperties();
+                            // when adding more client/session restrictions, extend next code
+                            // (currently only time is restricted)
+                    // setting session-timeout to hard 0
+                    $length = count($authProps);
+                    syslog(LOG_ERR, 'PROCESS_ACCOUNTING AUTHPROPS: ' . $length);
+                    foreach ($authProps as $authProp) {
+                        syslog(LOG_ERR, 'AUTH ATTRIBUTE: ' . $authProp);
+                    }
+                    if (array_key_exists('data_exhaust', $authProps)) {
+                        syslog(LOG_ERR, 'DATA EXHAUST EXISTS' . $authProp);
+                        $stmt = $db->prepare('update session_restrictions 
+                                                set session_timeout = :session_timeout 
+                                                where zoneid = :zoneid and sessionid = :sessionid');
+                        $stmt->bindParam(':zoneid', $row['zoneid']);
+                        $stmt->bindParam(':sessionid', $row['sessionid']);
+                        $stmt->bindParam(':session_timeout', $authProps['data_exhaust']);
+                        try {
+                            $stmt->execute();
+                            syslog(LOG_ERR, 'DB CALL EXECUTED');
+                        } catch (Exception $e) {
+                            syslog(LOG_ERR, 'DB CALL FAILED' . $e->getMessage());
+                        }
+                    }
+
                 }
             }
         }
@@ -98,3 +127,7 @@ if ($result !== false) {
 }
 
 $db->close();
+
+
+//insert into session_restrictions (zoneid, sessionid, session_timeout) values (0, zamDsoLBo2IaJqvV27dU7A==, 60000000) on conflict (zoneid, sessionid) do update set session_timeout = excluded.session_timeout;
+//update session_restrictions set session_timeout = :session_timeout where zoneid = :zoneid and sessionid = :sessionid;
